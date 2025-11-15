@@ -329,7 +329,7 @@ def groq_generate_summary(user_context: str, clean_transcript: str, action_items
         "action_items": [item.dict() for item in action_items],
     }
     completion = client.chat.completions.create(
-        model="llama-3.1-70b-versatile",
+        model="qwen/qwen3-32b",
         messages=[
             {"role": "system", "content": system_prompt.format(user_context=user_context or "No user history available.")},
             {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
@@ -345,7 +345,7 @@ def groq_generate_summary(user_context: str, clean_transcript: str, action_items
 def groq_generate_freepik_query(summary: str) -> str:
     client = _get_groq_client()
     completion = client.chat.completions.create(
-        model="llama-3.1-8b-instant",
+        model="qwen/qwen3-32b",
         messages=[
             {
                 "role": "system",
