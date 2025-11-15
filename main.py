@@ -57,18 +57,10 @@ class VisualResponse(BaseModel):
     query_used: str
 
 
-class Persona(BaseModel):
-    name: str
-    style: str
-    contributions: str
-    signature_phrases: str
-
-
 class AnalyzeResponse(BaseModel):
     summary: str
     action_items: List[ActionItem]
     visual: VisualResponse
-    personas: List[Persona]
 
 
 def _require_env(value: Optional[str], name: str) -> str:
@@ -96,6 +88,36 @@ def _get_groq_client() -> Groq:
 
 def simple_clean_transcript(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip()
+
+
+def _build_default_freepik_query(summary: str) -> str:
+    tokens = re.findall(r"[A-Za-z]{3,}", summary or "")
+    if not tokens:
+        tokens = ["team", "meeting"]
+    keywords = tokens[:4]
+    if "illustration" not in keywords:
+        keywords.append("illustration")
+    return " ".join(keywords)
+
+
+def _find_first_http_url(payload):
+    """Depth-first search for the first HTTP(S) URL string inside arbitrarily nested objects."""
+    if isinstance(payload, str):
+        candidate = payload.strip()
+        if candidate.startswith(("http://", "https://")):
+            return candidate
+        return None
+    if isinstance(payload, dict):
+        for value in payload.values():
+            url = _find_first_http_url(value)
+            if url:
+                return url
+    elif isinstance(payload, list):
+        for item in payload:
+            url = _find_first_http_url(item)
+            if url:
+                return url
+    return None
 
 
 PREPROCESS_SCRIPT = r"""import re
@@ -352,6 +374,9 @@ def groq_generate_summary(user_context: str, clean_transcript: str, action_items
 
 def groq_generate_freepik_query(summary: str) -> str:
     client = _get_groq_client()
+    summary_payload = (summary or "").strip()
+    if not summary_payload:
+        summary_payload = "Concise meeting recap mentioning key goals and follow-up tasks."
     completion = client.chat.completions.create(
         model="openai/gpt-oss-120b",
         messages=[
@@ -364,7 +389,7 @@ def groq_generate_freepik_query(summary: str) -> str:
                 "content": (
                     "Given this meeting summary, generate a short Freepik search query for an illustration "
                     "that could visually represent the meeting:\n"
-                    f"{summary}"
+                    f"{summary_payload}"
                 ),
             },
         ],
@@ -373,76 +398,93 @@ def groq_generate_freepik_query(summary: str) -> str:
     )
     if not completion.choices:
         raise HTTPException(status_code=502, detail="Groq query generation failed")
-    query = completion.choices[0].message.content.strip()
-    return query.strip('"').strip()
-
-
-def groq_generate_personas(clean_transcript: str, user_context: str) -> List[Persona]:
-    client = _get_groq_client()
-    completion = client.chat.completions.create(
-        model="openai/gpt-oss-120b",
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You extract participant personas from meetings.\n"
-                    "Return valid JSON with a 'personas' list. Each item must have:\n"
-                    "name, style, contributions, signature_phrases."
-                ),
-            },
-            {
-                "role": "user",
-                "content": json.dumps({"transcript": clean_transcript, "user_context": user_context}, ensure_ascii=False),
-            },
-        ],
-        temperature=0.3,
-        max_tokens=512,
-    )
-    if not completion.choices:
-        return []
-    content = completion.choices[0].message.content.strip()
-    try:
-        parsed = json.loads(content)
-    except json.JSONDecodeError:
-        logger.warning("Groq persona output not JSON, skipping.")
-        return []
-    persona_entries = parsed.get("personas") if isinstance(parsed, dict) else []
-    personas: List[Persona] = []
-    for entry in persona_entries or []:
-        name = (entry.get("name") or "").strip()
-        if not name:
-            continue
-        personas.append(
-            Persona(
-                name=name,
-                style=(entry.get("style") or "Collaborative").strip(),
-                contributions=(entry.get("contributions") or "No specific contributions noted.").strip(),
-                signature_phrases=(entry.get("signature_phrases") or "n/a").strip(),
-            )
-        )
-    return personas
+    query = completion.choices[0].message.content or ""
+    query = query.strip().strip('"').strip("'")
+    query = re.sub(r"\s+", " ", query)
+    if len(query) < 4 or len(query.split()) < 2:
+        query = _build_default_freepik_query(summary_payload)
+    return query[:120]
 
 
 def freepik_search_image(query: str) -> Optional[str]:
     if not query:
         return None
     api_key = _require_env(FREEPIK_API_KEY, "FREEPIK_API_KEY")
-    params = {"query": query, "limit": 1, "order": "popular"}
+    params = {"query": query, "limit": 1, "page": 1}
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {api_key}",
+        "X-Freepik-API-Key": api_key,
+    }
     response = http_session.get(
         "https://api.freepik.com/v1/resources",
-        headers={"Authorization": f"Bearer {api_key}", "Accept": "application/json"},
+        headers=headers,
         params=params,
         timeout=REQUEST_TIMEOUT,
     )
+    if not response.ok:
+        try:
+            error_preview = response.json()
+        except ValueError:  # response not JSON
+            error_preview = response.text[:500]
+        logger.warning("Freepik search error %s: %s", response.status_code, error_preview)
+        response.raise_for_status()
     response.raise_for_status()
     data = response.json()
     items = data.get("data") or data.get("items") or []
     if not items:
+        logger.info("Freepik returned no items for query '%s'", query)
         return None
+
     first = items[0]
-    for key in ("preview", "preview_url", "image", "url"):
-        if key in first and first[key]:
-            return first[key]
+
+    def _prefer_image_blob(entry: dict) -> Optional[str]:
+        if not isinstance(entry, dict):
+            return None
+        image_section = entry.get("image") or {}
+        if isinstance(image_section, dict):
+            source = image_section.get("source") or {}
+            if isinstance(source, dict) and source.get("url"):
+                return source["url"]
+            for key in ("url", "preview", "preview_url"):
+                if image_section.get(key):
+                    return image_section[key]
+        preview_section = entry.get("preview") or {}
+        if isinstance(preview_section, dict):
+            for key in ("url", "preview_url"):
+                if preview_section.get(key):
+                    return preview_section[key]
+        return None
+
+    preferred_image = _prefer_image_blob(first)
+    if preferred_image:
+        return preferred_image
+
+    def _unwrap_url(candidate):
+        if isinstance(candidate, str):
+            return candidate
+        if isinstance(candidate, dict):
+            for key in ("url", "preview", "preview_url", "small", "src", "href"):
+                if key in candidate and candidate[key]:
+                    resolved = _unwrap_url(candidate[key])
+                    if resolved:
+                        return resolved
+        if isinstance(candidate, list):
+            for item in candidate:
+                resolved = _unwrap_url(item)
+                if resolved:
+                    return resolved
+        return None
+
+    for top_key in ("preview", "preview_url", "image", "url", "assets", "thumbnails", "images"):
+        if top_key in first and first[top_key]:
+            url = _unwrap_url(first[top_key])
+            if url:
+                return url
+    fallback_url = _find_first_http_url(first)
+    if fallback_url:
+        return fallback_url
+    logger.info("Freepik response lacked usable preview fields for query '%s'", query)
     return None
 
 
@@ -454,7 +496,6 @@ async def analyze(payload: AnalyzeRequest) -> AnalyzeResponse:
     action_items = fastino_extract_action_items(clean_transcript)
     user_context = fastino_get_user_context(fastino_user_id)
     summary_text = groq_generate_summary(user_context, clean_transcript, action_items)
-    personas = groq_generate_personas(clean_transcript, user_context)
     try:
         query = groq_generate_freepik_query(summary_text)
     except HTTPException:
@@ -467,7 +508,7 @@ async def analyze(payload: AnalyzeRequest) -> AnalyzeResponse:
             logger.warning("Freepik search failed: %s", exc)
             image_url = None
     visual = VisualResponse(image_url=image_url, query_used=query or "")
-    return AnalyzeResponse(summary=summary_text, action_items=action_items, visual=visual, personas=personas)
+    return AnalyzeResponse(summary=summary_text, action_items=action_items, visual=visual)
 
 
 app.mount("/", StaticFiles(directory=".", html=True), name="static")
