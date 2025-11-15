@@ -57,10 +57,18 @@ class VisualResponse(BaseModel):
     query_used: str
 
 
+class Persona(BaseModel):
+    name: str
+    style: str
+    contributions: str
+    signature_phrases: str
+
+
 class AnalyzeResponse(BaseModel):
     summary: str
     action_items: List[ActionItem]
     visual: VisualResponse
+    personas: List[Persona]
 
 
 def _require_env(value: Optional[str], name: str) -> str:
@@ -90,7 +98,7 @@ def simple_clean_transcript(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip()
 
 
-PREPROCESS_SCRIPT = """import re
+PREPROCESS_SCRIPT = r"""import re
 from pathlib import Path
 
 raw = Path('transcript.txt').read_text(encoding='utf-8', errors='ignore')
@@ -329,7 +337,7 @@ def groq_generate_summary(user_context: str, clean_transcript: str, action_items
         "action_items": [item.dict() for item in action_items],
     }
     completion = client.chat.completions.create(
-        model="qwen/qwen3-32b",
+        model="openai/gpt-oss-120b",
         messages=[
             {"role": "system", "content": system_prompt.format(user_context=user_context or "No user history available.")},
             {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
@@ -345,7 +353,7 @@ def groq_generate_summary(user_context: str, clean_transcript: str, action_items
 def groq_generate_freepik_query(summary: str) -> str:
     client = _get_groq_client()
     completion = client.chat.completions.create(
-        model="qwen/qwen3-32b",
+        model="openai/gpt-oss-120b",
         messages=[
             {
                 "role": "system",
@@ -367,6 +375,52 @@ def groq_generate_freepik_query(summary: str) -> str:
         raise HTTPException(status_code=502, detail="Groq query generation failed")
     query = completion.choices[0].message.content.strip()
     return query.strip('"').strip()
+
+
+def groq_generate_personas(clean_transcript: str, user_context: str) -> List[Persona]:
+    client = _get_groq_client()
+    completion = client.chat.completions.create(
+        model="openai/gpt-oss-120b",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You extract participant personas from meetings.\n"
+                    "Return valid JSON with a 'personas' list. Each item must have:\n"
+                    "name, style, contributions, signature_phrases."
+                ),
+            },
+            {
+                "role": "user",
+                "content": json.dumps({"transcript": clean_transcript, "user_context": user_context}, ensure_ascii=False),
+            },
+        ],
+        temperature=0.3,
+        max_tokens=512,
+    )
+    if not completion.choices:
+        return []
+    content = completion.choices[0].message.content.strip()
+    try:
+        parsed = json.loads(content)
+    except json.JSONDecodeError:
+        logger.warning("Groq persona output not JSON, skipping.")
+        return []
+    persona_entries = parsed.get("personas") if isinstance(parsed, dict) else []
+    personas: List[Persona] = []
+    for entry in persona_entries or []:
+        name = (entry.get("name") or "").strip()
+        if not name:
+            continue
+        personas.append(
+            Persona(
+                name=name,
+                style=(entry.get("style") or "Collaborative").strip(),
+                contributions=(entry.get("contributions") or "No specific contributions noted.").strip(),
+                signature_phrases=(entry.get("signature_phrases") or "n/a").strip(),
+            )
+        )
+    return personas
 
 
 def freepik_search_image(query: str) -> Optional[str]:
@@ -400,6 +454,7 @@ async def analyze(payload: AnalyzeRequest) -> AnalyzeResponse:
     action_items = fastino_extract_action_items(clean_transcript)
     user_context = fastino_get_user_context(fastino_user_id)
     summary_text = groq_generate_summary(user_context, clean_transcript, action_items)
+    personas = groq_generate_personas(clean_transcript, user_context)
     try:
         query = groq_generate_freepik_query(summary_text)
     except HTTPException:
@@ -412,7 +467,7 @@ async def analyze(payload: AnalyzeRequest) -> AnalyzeResponse:
             logger.warning("Freepik search failed: %s", exc)
             image_url = None
     visual = VisualResponse(image_url=image_url, query_used=query or "")
-    return AnalyzeResponse(summary=summary_text, action_items=action_items, visual=visual)
+    return AnalyzeResponse(summary=summary_text, action_items=action_items, visual=visual, personas=personas)
 
 
 app.mount("/", StaticFiles(directory=".", html=True), name="static")

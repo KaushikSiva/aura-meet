@@ -5,114 +5,347 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MeetLite</title>
     <style>
+      :root {
+        color-scheme: light;
+        font-family: 'Inter', Arial, sans-serif;
+      }
       body {
-        font-family: Arial, sans-serif;
         margin: 0;
         padding: 20px;
-        background: #f8f9fb;
+        background: linear-gradient(135deg, #edf2fb, #f9f5ff);
       }
       h1 {
         margin-top: 0;
       }
       .card {
-        background: #fff;
+        background: #ffffff;
         padding: 20px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        max-width: 960px;
+        border-radius: 16px;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+        max-width: 1200px;
         margin: 0 auto;
       }
       label {
         display: block;
-        margin-top: 16px;
-        font-weight: bold;
+        margin-top: 12px;
+        font-weight: 600;
       }
       input,
       textarea {
         width: 100%;
-        padding: 10px;
-        border: 1px solid #ccc;
-        border-radius: 6px;
-        font-size: 14px;
+        padding: 12px;
+        border: 1px solid #d0d7ff;
+        border-radius: 10px;
+        font-size: 15px;
         margin-top: 6px;
         box-sizing: border-box;
+        background: #fdfdff;
       }
       textarea {
-        min-height: 200px;
+        min-height: 180px;
+      }
+      .input-grid {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        align-items: flex-end;
+      }
+      .input-grid .cta {
+        flex: 0 0 220px;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
       }
       button {
-        margin-top: 16px;
         padding: 12px 24px;
         font-size: 16px;
         border: none;
-        border-radius: 6px;
-        background: #3f51b5;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #7c5dff, #5aa9ff);
         color: #fff;
         cursor: pointer;
+        box-shadow: 0 10px 20px rgba(92, 133, 255, 0.3);
+        transition: transform 0.2s;
       }
       button:disabled {
         opacity: 0.6;
         cursor: not-allowed;
       }
-      #summary {
+      button:hover:not(:disabled) {
+        transform: translateY(-1px);
+      }
+      #status {
+        font-size: 14px;
+        min-height: 20px;
+      }
+      .layout {
+        display: flex;
+        gap: 20px;
         margin-top: 24px;
-        white-space: pre-line;
+        flex-wrap: wrap;
+      }
+      .main-column {
+        flex: 1 1 640px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      section {
+        background: #fefefe;
+        border-radius: 14px;
+        padding: 18px;
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+      }
+      .summary-board {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 14px;
+      }
+      .summary-card {
+        border-radius: 12px;
+        color: #041230;
+        padding: 14px;
+        min-height: 140px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        animation: float-in 0.4s ease forwards;
+        opacity: 0;
+      }
+      .summary-card h3 {
+        margin: 0;
+        font-size: 16px;
+      }
+      .summary-card ul {
+        padding-left: 18px;
+        margin: 0;
+        font-size: 14px;
+      }
+      .summary-card.decisions {
+        background: #ecfdf3;
+        border: 1px solid #38b27d;
+      }
+      .summary-card.actions {
+        background: #fff1f2;
+        border: 1px solid #fb7185;
+      }
+      .summary-card.highlights {
+        background: #e0f2ff;
+        border: 1px solid #38bdf8;
+      }
+      @keyframes float-in {
+        from {
+          transform: translateY(12px);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
       }
       table {
         width: 100%;
         border-collapse: collapse;
-        margin-top: 16px;
+        margin-top: 8px;
+        font-size: 14px;
       }
       th,
       td {
         border: 1px solid #e0e0e0;
-        padding: 8px;
+        padding: 10px;
         text-align: left;
       }
       th {
-        background: #f2f2f2;
+        background: #eef2ff;
       }
-      #visual img {
+      tr {
+        transition: background 0.2s;
+      }
+      tr.flash {
+        animation: flashRow 0.6s ease;
+      }
+      @keyframes flashRow {
+        from {
+          background: #fff4d5;
+        }
+        to {
+          background: #fff;
+        }
+      }
+      .persona-panel {
+        flex: 0 0 320px;
+        background: #041230;
+        color: #f8fbff;
+        border-radius: 16px;
+        padding: 18px;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+      }
+      .persona-cards {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .persona-card {
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 12px;
+        padding: 14px;
+        animation: pop 0.3s ease forwards;
+        opacity: 0;
+      }
+      .persona-card h3 {
+        margin: 0 0 6px;
+        font-size: 16px;
+        color: #ffe066;
+      }
+      .persona-card p {
+        margin: 4px 0;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+      @keyframes pop {
+        from {
+          transform: scale(0.95);
+          opacity: 0;
+        }
+        to {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+      .visual-card {
+        border-radius: 14px;
+        padding: 12px;
+        min-height: 200px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        background: linear-gradient(135deg, #fcf0ff, #dbeafe);
+        position: relative;
+        overflow: hidden;
+      }
+      .visual-card::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.4), transparent);
+      }
+      .visual-card img {
         max-width: 100%;
-        margin-top: 12px;
-        border-radius: 8px;
+        border-radius: 12px;
+        z-index: 1;
       }
-      #status {
+      .visual-pill {
+        display: flex;
+        gap: 8px;
+        z-index: 1;
+      }
+      .visual-pill span {
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .pill-decision {
+        background: rgba(16, 185, 129, 0.15);
+        color: #047857;
+      }
+      .pill-action {
+        background: rgba(239, 68, 68, 0.15);
+        color: #b91c1c;
+      }
+      .pill-highlight {
+        background: rgba(59, 130, 246, 0.15);
+        color: #1d4ed8;
+      }
+      #summary {
+        white-space: pre-line;
+        font-family: 'IBM Plex Mono', monospace;
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 16px;
+        border-radius: 10px;
         margin-top: 12px;
-        font-size: 14px;
+      }
+      @media (max-width: 960px) {
+        .persona-panel {
+          flex: 1 1 100%;
+        }
       }
     </style>
   </head>
   <body>
     <div class="card">
       <h1>MeetLite – Self-Evolving Meeting Assistant</h1>
-      <label for="user-id">User ID</label>
-      <input id="user-id" placeholder="User ID (e.g., email)" />
-
+      <div class="input-grid">
+        <div style="flex:1">
+          <label for="user-id">User ID</label>
+          <input id="user-id" placeholder="User ID (e.g., email)" />
+        </div>
+        <div class="cta">
+          <button id="analyze-btn">Analyze Meeting</button>
+          <div id="status"></div>
+        </div>
+      </div>
       <label for="transcript">Meeting Transcript</label>
       <textarea id="transcript" placeholder="Paste meeting transcript here"></textarea>
 
-      <button id="analyze-btn">Analyze Meeting</button>
-      <div id="status"></div>
+      <div class="layout">
+        <div class="main-column">
+          <section>
+            <h2>Instant Summary Cards</h2>
+            <div id="summary-board" class="summary-board">
+              <div class="summary-card decisions">
+                <h3>Decisions</h3>
+                <ul><li>Waiting for transcript…</li></ul>
+              </div>
+              <div class="summary-card actions">
+                <h3>Actions</h3>
+                <ul><li>Waiting for transcript…</li></ul>
+              </div>
+              <div class="summary-card highlights">
+                <h3>Highlights</h3>
+                <ul><li>Waiting for transcript…</li></ul>
+              </div>
+            </div>
+          </section>
+          <section>
+            <h2>Action Items</h2>
+            <table id="action-items">
+              <thead>
+                <tr>
+                  <th>Description</th>
+                  <th>Owner</th>
+                  <th>Due date</th>
+                  <th>Priority</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </section>
+          <section>
+            <h2>Freepik Visual Recap</h2>
+            <div id="visual" class="visual-card">No visual yet.</div>
+          </section>
+        </div>
+        <aside class="persona-panel">
+          <h2>Digital Twin Personas</h2>
+          <div id="persona-cards" class="persona-cards">
+            <div class="persona-card">
+              <h3>Awaiting transcript…</h3>
+              <p>Paste a conversation to unlock persona pop-ups.</p>
+            </div>
+          </div>
+        </aside>
+      </div>
 
-      <h2>Summary</h2>
-      <div id="summary">No analysis yet.</div>
-
-      <h2>Action Items</h2>
-      <table id="action-items">
-        <thead>
-          <tr>
-            <th>Description</th>
-            <th>Owner</th>
-            <th>Due date</th>
-            <th>Priority</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-
-      <h2>Visual Recap</h2>
-      <div id="visual">No visual yet.</div>
+      <section>
+        <h2>Raw Summary</h2>
+        <div id="summary">No analysis yet.</div>
+      </section>
     </div>
     <script>
       const analyzeBtn = document.getElementById('analyze-btn');
@@ -120,6 +353,115 @@
       const actionTableBody = document.querySelector('#action-items tbody');
       const visualDiv = document.getElementById('visual');
       const statusDiv = document.getElementById('status');
+      const summaryBoard = document.getElementById('summary-board');
+      const personaCards = document.getElementById('persona-cards');
+
+      function summarizeIntoBuckets(summaryText) {
+        const buckets = { decisions: [], actions: [], highlights: [] };
+        const lines = (summaryText || '').split(/\n+/).map((line) => line.replace(/^[\-\*\d\.]+\s*/, '').trim()).filter(Boolean);
+        lines.forEach((line) => {
+          const lower = line.toLowerCase();
+          if (lower.includes('decid') || lower.includes('approval')) {
+            buckets.decisions.push(line);
+          } else if (lower.includes('action') || lower.includes('follow') || lower.includes('assign')) {
+            buckets.actions.push(line);
+          } else {
+            buckets.highlights.push(line);
+          }
+        });
+        if (!lines.length) {
+          buckets.decisions = ['Summary pending.'];
+        }
+        return buckets;
+      }
+
+      function renderSummaryCards(summaryText) {
+        const buckets = summarizeIntoBuckets(summaryText);
+        summaryBoard.innerHTML = '';
+        const order = [
+          { key: 'decisions', title: 'Decisions', className: 'decisions' },
+          { key: 'actions', title: 'Actions', className: 'actions' },
+          { key: 'highlights', title: 'Highlights', className: 'highlights' },
+        ];
+        order.forEach(({ key, title, className }, index) => {
+          const card = document.createElement('div');
+          card.className = `summary-card ${className}`;
+          card.style.animationDelay = `${index * 0.05}s`;
+          card.innerHTML = `<h3>${title}</h3>`;
+          const list = document.createElement('ul');
+          (buckets[key].length ? buckets[key] : ['No notes found.']).forEach((item) => {
+            const li = document.createElement('li');
+            li.textContent = item;
+            list.appendChild(li);
+          });
+          card.appendChild(list);
+          summaryBoard.appendChild(card);
+        });
+      }
+
+      function renderActionItems(items = []) {
+        actionTableBody.innerHTML = '';
+        if (!items.length) {
+          const row = document.createElement('tr');
+          row.innerHTML = '<td colspan="4">No action items detected.</td>';
+          actionTableBody.appendChild(row);
+          return;
+        }
+        items.forEach((item) => {
+          const row = document.createElement('tr');
+          row.classList.add('flash');
+          row.innerHTML = `
+            <td>${item.description || ''}</td>
+            <td>${item.owner || ''}</td>
+            <td>${item.due_date || ''}</td>
+            <td>${item.priority || ''}</td>
+          `;
+          actionTableBody.appendChild(row);
+        });
+      }
+
+      function renderVisual(visual) {
+        if (visual && visual.image_url) {
+          const pills = `
+            <div class="visual-pill">
+              <span class="pill-decision">Decisions</span>
+              <span class="pill-action">Actions</span>
+              <span class="pill-highlight">Highlights</span>
+            </div>`;
+          visualDiv.innerHTML = `
+            ${pills}
+            <img src="${visual.image_url}" alt="Meeting visual" />
+            <small>Freepik query: ${visual.query_used || 'n/a'}</small>
+          `;
+        } else if (visual && visual.query_used) {
+          visualDiv.textContent = `No image found for "${visual.query_used}".`;
+        } else {
+          visualDiv.textContent = 'No visual generated yet.';
+        }
+      }
+
+      function renderPersonas(personas = []) {
+        personaCards.innerHTML = '';
+        if (!personas.length) {
+          const card = document.createElement('div');
+          card.className = 'persona-card';
+          card.innerHTML = '<h3>No personas</h3><p>Fastino needs more history to craft personas.</p>';
+          personaCards.appendChild(card);
+          return;
+        }
+        personas.forEach((persona, idx) => {
+          const card = document.createElement('div');
+          card.className = 'persona-card';
+          card.style.animationDelay = `${idx * 0.05}s`;
+          card.innerHTML = `
+            <h3>${persona.name}</h3>
+            <p><strong>Style:</strong> ${persona.style}</p>
+            <p><strong>Recent contributions:</strong> ${persona.contributions}</p>
+            <p><strong>Typical phrases:</strong> ${persona.signature_phrases}</p>
+          `;
+          personaCards.appendChild(card);
+        });
+      }
 
       async function analyzeMeeting() {
         const userId = document.getElementById('user-id').value.trim();
@@ -147,32 +489,10 @@
           }
           const data = await response.json();
           summaryDiv.textContent = data.summary || 'No summary returned.';
-          actionTableBody.innerHTML = '';
-          (data.action_items || []).forEach((item) => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-              <td>${item.description || ''}</td>
-              <td>${item.owner || ''}</td>
-              <td>${item.due_date || ''}</td>
-              <td>${item.priority || ''}</td>
-            `;
-            actionTableBody.appendChild(row);
-          });
-          if (!data.action_items || data.action_items.length === 0) {
-            const row = document.createElement('tr');
-            row.innerHTML = '<td colspan="4">No action items detected.</td>';
-            actionTableBody.appendChild(row);
-          }
-          if (data.visual && data.visual.image_url) {
-            visualDiv.innerHTML = `
-              <img src="${data.visual.image_url}" alt="Meeting visual" />
-              <div>Query: ${data.visual.query_used || 'n/a'}</div>
-            `;
-          } else {
-            visualDiv.textContent = data.visual && data.visual.query_used
-              ? `No image found for query "${data.visual.query_used}".`
-              : 'No visual generated yet.';
-          }
+          renderSummaryCards(data.summary || '');
+          renderActionItems(data.action_items || []);
+          renderVisual(data.visual || {});
+          renderPersonas(data.personas || []);
           statusDiv.textContent = 'Done!';
           statusDiv.style.color = 'green';
         } catch (error) {
@@ -180,6 +500,10 @@
           statusDiv.textContent = error.message || 'Something went wrong.';
           statusDiv.style.color = 'crimson';
           summaryDiv.textContent = 'Analysis failed.';
+          renderSummaryCards('');
+          renderActionItems([]);
+          renderVisual({});
+          renderPersonas([]);
         } finally {
           analyzeBtn.disabled = false;
         }
