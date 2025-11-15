@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MeetLite</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background: #f8f9fb;
+      }
+      h1 {
+        margin-top: 0;
+      }
+      .card {
+        background: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        max-width: 960px;
+        margin: 0 auto;
+      }
+      label {
+        display: block;
+        margin-top: 16px;
+        font-weight: bold;
+      }
+      input,
+      textarea {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        font-size: 14px;
+        margin-top: 6px;
+        box-sizing: border-box;
+      }
+      textarea {
+        min-height: 200px;
+      }
+      button {
+        margin-top: 16px;
+        padding: 12px 24px;
+        font-size: 16px;
+        border: none;
+        border-radius: 6px;
+        background: #3f51b5;
+        color: #fff;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      #summary {
+        margin-top: 24px;
+        white-space: pre-line;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 16px;
+      }
+      th,
+      td {
+        border: 1px solid #e0e0e0;
+        padding: 8px;
+        text-align: left;
+      }
+      th {
+        background: #f2f2f2;
+      }
+      #visual img {
+        max-width: 100%;
+        margin-top: 12px;
+        border-radius: 8px;
+      }
+      #status {
+        margin-top: 12px;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>MeetLite – Self-Evolving Meeting Assistant</h1>
+      <label for="user-id">User ID</label>
+      <input id="user-id" placeholder="User ID (e.g., email)" />
+
+      <label for="transcript">Meeting Transcript</label>
+      <textarea id="transcript" placeholder="Paste meeting transcript here"></textarea>
+
+      <button id="analyze-btn">Analyze Meeting</button>
+      <div id="status"></div>
+
+      <h2>Summary</h2>
+      <div id="summary">No analysis yet.</div>
+
+      <h2>Action Items</h2>
+      <table id="action-items">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Owner</th>
+            <th>Due date</th>
+            <th>Priority</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+
+      <h2>Visual Recap</h2>
+      <div id="visual">No visual yet.</div>
+    </div>
+    <script>
+      const analyzeBtn = document.getElementById('analyze-btn');
+      const summaryDiv = document.getElementById('summary');
+      const actionTableBody = document.querySelector('#action-items tbody');
+      const visualDiv = document.getElementById('visual');
+      const statusDiv = document.getElementById('status');
+
+      async function analyzeMeeting() {
+        const userId = document.getElementById('user-id').value.trim();
+        const transcript = document.getElementById('transcript').value.trim();
+        if (!userId || !transcript) {
+          statusDiv.textContent = 'Please fill both the user ID and transcript.';
+          statusDiv.style.color = 'crimson';
+          return;
+        }
+        summaryDiv.textContent = 'Processing…';
+        statusDiv.textContent = 'Running analysis…';
+        statusDiv.style.color = '#333';
+        analyzeBtn.disabled = true;
+        try {
+          const response = await fetch('/analyze', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ user_id: userId, transcript }),
+          });
+          if (!response.ok) {
+            const errorBody = await response.json().catch(() => ({}));
+            throw new Error(errorBody.detail || 'Request failed');
+          }
+          const data = await response.json();
+          summaryDiv.textContent = data.summary || 'No summary returned.';
+          actionTableBody.innerHTML = '';
+          (data.action_items || []).forEach((item) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${item.description || ''}</td>
+              <td>${item.owner || ''}</td>
+              <td>${item.due_date || ''}</td>
+              <td>${item.priority || ''}</td>
+            `;
+            actionTableBody.appendChild(row);
+          });
+          if (!data.action_items || data.action_items.length === 0) {
+            const row = document.createElement('tr');
+            row.innerHTML = '<td colspan="4">No action items detected.</td>';
+            actionTableBody.appendChild(row);
+          }
+          if (data.visual && data.visual.image_url) {
+            visualDiv.innerHTML = `
+              <img src="${data.visual.image_url}" alt="Meeting visual" />
+              <div>Query: ${data.visual.query_used || 'n/a'}</div>
+            `;
+          } else {
+            visualDiv.textContent = data.visual && data.visual.query_used
+              ? `No image found for query "${data.visual.query_used}".`
+              : 'No visual generated yet.';
+          }
+          statusDiv.textContent = 'Done!';
+          statusDiv.style.color = 'green';
+        } catch (error) {
+          console.error(error);
+          statusDiv.textContent = error.message || 'Something went wrong.';
+          statusDiv.style.color = 'crimson';
+          summaryDiv.textContent = 'Analysis failed.';
+        } finally {
+          analyzeBtn.disabled = false;
+        }
+      }
+
+      analyzeBtn.addEventListener('click', analyzeMeeting);
+    </script>
+  </body>
+</html>
